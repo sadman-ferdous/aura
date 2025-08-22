@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aura - Your Personal Assistant</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script> <!-- Added Marked.js for Markdown parsing -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --background-start-rgb: 15, 23, 42;
+            --background-end-rgb: 51, 65, 85;
+            --glow-color: rgba(99, 102, 241, 0.5);
+        }
+        html.light {
+            --background-start-rgb: 226, 232, 240;
+            --background-end-rgb: 241, 245, 249;
+            --glow-color: rgba(129, 140, 248, 0.5);
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, rgb(var(--background-start-rgb)), rgb(var(--background-end-rgb)));
+            background-attachment: fixed;
+            overflow: hidden;
+        }
+        .glassmorphism {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        html.light .glassmorphism {
+            background: rgba(255, 255, 255, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+        }
+        .assistant-bubble {
+            background: linear-gradient(45deg, #4f46e5, #c026d3);
+            position: relative;
+        }
+        .assistant-bubble::before {
+            content: '';
+            position: absolute;
+            top: -5px; right: -5px; bottom: -5px; left: -5px;
+            background: radial-gradient(circle, var(--glow-color) 0%, transparent 70%);
+            border-radius: 1.25rem;
+            z-index: -1;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 0.7; }
+            50% { transform: scale(1.05); opacity: 1; }
+        }
+        .typing-indicator span {
+            animation: blink 1.4s infinite both;
+        }
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes blink {
+            0% { opacity: 0.2; }
+            20% { opacity: 1; }
+            100% { opacity: 0.2; }
+        }
+        /* Styles for Markdown content */
+        .assistant-bubble h1, .assistant-bubble h2, .assistant-bubble h3 { font-weight: 600; margin-bottom: 0.5rem; }
+        .assistant-bubble h1 { font-size: 1.25rem; }
+        .assistant-bubble h2 { font-size: 1.1rem; }
+        .assistant-bubble ul { list-style-type: disc; padding-left: 1.5rem; margin-top: 0.5rem; }
+        .assistant-bubble ol { list-style-type: decimal; padding-left: 1.5rem; margin-top: 0.5rem; }
+        .assistant-bubble li { margin-bottom: 0.25rem; }
+        .assistant-bubble a { color: #a5b4fc; text-decoration: underline; }
+        .assistant-bubble code { background-color: rgba(0,0,0,0.2); padding: 0.1rem 0.3rem; border-radius: 0.25rem; font-family: monospace; }
+        .assistant-bubble pre { background-color: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: 0.5rem; margin-top: 0.5rem; white-space: pre-wrap; }
+
+        .loader {
+            border: 4px solid #f3f3f330;
+            border-top: 4px solid #818cf8;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(129, 140, 248, 0.5); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(129, 140, 248, 0.8); }
+    </style>
+</head>
+<body class="text-slate-200 dark:text-slate-200 light:text-slate-800 transition-colors duration-500">
+    <div class="flex h-screen w-full p-4 gap-4">
+
+        <!-- Main Content -->
+        <div class="flex flex-col flex-1 h-full rounded-2xl overflow-hidden">
+            <!-- Top Bar -->
+            <header class="flex-shrink-0 flex items-center justify-between p-4 glassmorphism rounded-t-2xl">
+                <h1 id="greeting" class="text-xl font-bold">Good Morning!</h1>
+                <div class="flex items-center gap-4">
+                    <button id="voice-toggle" class="p-2 rounded-full hover:bg-white/20 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg>
+                    </button>
+                    <button id="theme-toggle" class="p-2 rounded-full hover:bg-white/20 transition-colors">
+                        <svg id="theme-icon-light" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                        <svg id="theme-icon-dark" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Chat Panel -->
+            <main id="chat-panel" class="flex-1 p-4 overflow-y-auto glassmorphism">
+                <!-- Chat messages will be appended here -->
+            </main>
+
+            <!-- Input Area -->
+            <footer class="flex-shrink-0 p-4 glassmorphism rounded-b-2xl">
+                <div class="relative">
+                    <input type="text" id="chat-input" class="w-full bg-black/20 dark:bg-black/20 light:bg-white/50 border-none rounded-full py-3 pl-5 pr-14 focus:ring-2 focus:ring-indigo-400 focus:outline-none transition-shadow" placeholder="Ask me anything...">
+                    <button id="send-btn" class="absolute right-2 top-1/2 -translate-y-1/2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-full p-2.5 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                    </button>
+                </div>
+            </footer>
+        </div>
+
+        <!-- Sidebar Widgets -->
+        <aside class="w-1/3 max-w-sm flex-shrink-0 h-full flex flex-col gap-4 overflow-y-auto">
+            <!-- Notes Widget -->
+            <div class="glassmorphism rounded-2xl p-4 flex flex-col">
+                <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 2H6.5A2.5 2.5 0 0 0 4 4.5v15A2.5 2.5 0 0 0 6.5 22h11a2.5 2.5 0 0 0 2.5-2.5V9Z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>
+                    Notes
+                </h2>
+                <div id="notes-container" class="space-y-2 max-h-48 overflow-y-auto">
+                    <!-- Notes will be appended here -->
+                </div>
+            </div>
+
+            <!-- Reminders Widget -->
+            <div class="glassmorphism rounded-2xl p-4 flex flex-col">
+                <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>
+                    Reminders
+                </h2>
+                <div id="reminders-container" class="space-y-2 max-h-48 overflow-y-auto">
+                    <!-- Reminders will be appended here -->
+                </div>
+            </div>
+            
+             <!-- Weather Widget -->
+            <div id="weather-widget" class="glassmorphism rounded-2xl p-4 flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-yellow-300"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                    <div>
+                        <p class="text-lg font-semibold" id="weather-location">Loading...</p>
+                        <p class="text-sm opacity-80" id="weather-desc">Fetching weather data</p>
+                    </div>
+                </div>
+                <p class="text-4xl font-bold" id="weather-temp">-°C</p>
+            </div>
+            
+            <!-- Music Player Widget -->
+            <div id="music-player-widget" class="glassmorphism rounded-2xl p-4 flex-col gap-2 hidden">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-lg font-semibold flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+                        Now Playing
+                    </h2>
+                    <button id="close-player-btn" class="text-2xl leading-none text-slate-400 hover:text-white">&times;</button>
+                </div>
+                <div class="aspect-video rounded-lg overflow-hidden mt-2 bg-black">
+                    <iframe id="youtube-player" width="100%" height="100%" src="" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                </div>
+            </div>
+
+            <!-- Image Generation Widget -->
+            <div id="image-widget" class="glassmorphism rounded-2xl p-4 flex-col gap-2 hidden">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-lg font-semibold flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+                        Generated Image
+                    </h2>
+                    <button id="close-image-btn" class="text-2xl leading-none text-slate-400 hover:text-white">&times;</button>
+                </div>
+                <div id="image-loader" class="flex justify-center items-center aspect-square mt-2">
+                    <div class="loader"></div>
+                </div>
+                <div id="generated-image-container" class="aspect-square rounded-lg overflow-hidden mt-2 bg-black hidden">
+                    <img id="generated-image" src="" alt="Generated Image" class="w-full h-full object-contain">
+                </div>
+            </div>
+
+        </aside>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DOM Elements ---
+            const greetingEl = document.getElementById('greeting');
+            const chatPanel = document.getElementById('chat-panel');
+            const chatInput = document.getElementById('chat-input');
+            const sendBtn = document.getElementById('send-btn');
+            const notesContainer = document.getElementById('notes-container');
+            const remindersContainer = document.getElementById('reminders-container');
+            const voiceToggle = document.getElementById('voice-toggle');
+            const themeToggle = document.getElementById('theme-toggle');
+            const themeIconLight = document.getElementById('theme-icon-light');
+            const themeIconDark = document.getElementById('theme-icon-dark');
+            const weatherLocation = document.getElementById('weather-location');
+            const weatherDesc = document.getElementById('weather-desc');
+            const weatherTemp = document.getElementById('weather-temp');
+            const musicPlayerWidget = document.getElementById('music-player-widget');
+            const youtubePlayer = document.getElementById('youtube-player');
+            const closePlayerBtn = document.getElementById('close-player-btn');
+            const imageWidget = document.getElementById('image-widget');
+            const closeImageBtn = document.getElementById('close-image-btn');
+            const imageLoader = document.getElementById('image-loader');
+            const generatedImageContainer = document.getElementById('generated-image-container');
+            const generatedImage = document.getElementById('generated-image');
+
+            // --- State ---
+            let notes = JSON.parse(localStorage.getItem('notes')) || [];
+            let reminders = JSON.parse(localStorage.getItem('reminders')) || [];
+            let isRecording = false;
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            let recognition;
+            if (SpeechRecognition) {
+                recognition = new SpeechRecognition();
+                recognition.continuous = false;
+                recognition.lang = 'en-US';
+                recognition.interimResults = false;
+            }
+
+            // --- Initialization ---
+            const init = () => {
+                updateGreeting();
+                renderNotes();
+                renderReminders();
+                checkReminders();
+                initTheme();
+                fetchWeather();
+                addMessage('assistant', "Hello! I'm Aura. How can I assist you today?");
+                setInterval(checkReminders, 60000); // Check every minute
+            };
+
+            // --- Theme Management ---
+            const initTheme = () => {
+                const savedTheme = localStorage.getItem('theme') || 'dark';
+                if (savedTheme === 'light') {
+                    document.documentElement.classList.remove('dark');
+                    document.documentElement.classList.add('light');
+                    themeIconDark.classList.add('hidden');
+                    themeIconLight.classList.remove('hidden');
+                } else {
+                    document.documentElement.classList.add('dark');
+                    document.documentElement.classList.remove('light');
+                    themeIconDark.classList.remove('hidden');
+                    themeIconLight.classList.add('hidden');
+                }
+            };
+
+            themeToggle.addEventListener('click', () => {
+                if (document.documentElement.classList.contains('dark')) {
+                    document.documentElement.classList.remove('dark');
+                    document.documentElement.classList.add('light');
+                    localStorage.setItem('theme', 'light');
+                    themeIconDark.classList.add('hidden');
+                    themeIconLight.classList.remove('hidden');
+                } else {
+                    document.documentElement.classList.add('dark');
+                    document.documentElement.classList.remove('light');
+                    localStorage.setItem('theme', 'dark');
+                    themeIconDark.classList.remove('hidden');
+                    themeIconLight.classList.add('hidden');
+                }
+            });
+
+            // --- UI Updates ---
+            const updateGreeting = () => {
+                const hour = new Date().getHours();
+                if (hour < 12) greetingEl.textContent = 'Good Morning!';
+                else if (hour < 18) greetingEl.textContent = 'Good Afternoon!';
+                else greetingEl.textContent = 'Good Evening!';
+            };
+
+            const addMessage = (sender, text) => {
+                const bubble = document.createElement('div');
+                bubble.classList.add('mb-4', 'p-4', 'rounded-2xl', 'max-w-md', 'w-fit', 'transition-transform', 'duration-300', 'transform', 'scale-95', 'opacity-0');
+                
+                if (sender === 'user') {
+                    bubble.classList.add('bg-indigo-500', 'text-white', 'self-end', 'ml-auto', 'rounded-br-lg');
+                    bubble.textContent = text;
+                } else {
+                    bubble.classList.add('assistant-bubble', 'text-white', 'self-start', 'rounded-bl-lg');
+                    bubble.innerHTML = marked.parse(text);
+                }
+                
+                chatPanel.appendChild(bubble);
+                setTimeout(() => {
+                    bubble.classList.remove('scale-95', 'opacity-0');
+                    bubble.classList.add('scale-100', 'opacity-100');
+                }, 10);
+                chatPanel.scrollTop = chatPanel.scrollHeight;
+            };
+            
+            const showTypingIndicator = () => {
+                const indicator = document.createElement('div');
+                indicator.id = 'typing-indicator';
+                indicator.classList.add('mb-4', 'p-4', 'rounded-2xl', 'max-w-md', 'w-fit', 'bg-slate-700', 'dark:bg-slate-700', 'light:bg-slate-300', 'self-start', 'rounded-bl-lg');
+                indicator.innerHTML = `<div class="typing-indicator">
+                    <span class="bg-slate-400 dark:bg-slate-400 light:bg-slate-500 inline-block w-2 h-2 rounded-full"></span>
+                    <span class="bg-slate-400 dark:bg-slate-400 light:bg-slate-500 inline-block w-2 h-2 rounded-full"></span>
+                    <span class="bg-slate-400 dark:bg-slate-400 light:bg-slate-500 inline-block w-2 h-2 rounded-full"></span>
+                </div>`;
+                chatPanel.appendChild(indicator);
+                chatPanel.scrollTop = chatPanel.scrollHeight;
+            };
+
+            const removeTypingIndicator = () => {
+                const indicator = document.getElementById('typing-indicator');
+                if (indicator) indicator.remove();
+            };
+
+            // --- Notes Management ---
+            const renderNotes = () => {
+                notesContainer.innerHTML = '';
+                if (notes.length === 0) {
+                    notesContainer.innerHTML = '<p class="text-sm opacity-60">No notes yet. Try "add note: ..."</p>';
+                    return;
+                }
+                notes.forEach((note, index) => {
+                    const noteEl = document.createElement('div');
+                    noteEl.classList.add('bg-black/20', 'dark:bg-black/20', 'light:bg-white/50', 'p-2', 'rounded-lg', 'flex', 'justify-between', 'items-center', 'text-sm');
+                    noteEl.innerHTML = `<span>${note}</span><button data-index="${index}" class="note-delete text-red-400 hover:text-red-600">&times;</button>`;
+                    notesContainer.appendChild(noteEl);
+                });
+            };
+
+            const addNote = (note) => {
+                notes.push(note);
+                localStorage.setItem('notes', JSON.stringify(notes));
+                renderNotes();
+            };
+
+            const deleteNote = (index) => {
+                notes.splice(index, 1);
+                localStorage.setItem('notes', JSON.stringify(notes));
+                renderNotes();
+            };
+
+            notesContainer.addEventListener('click', (e) => {
+                if (e.target.classList.contains('note-delete')) {
+                    const index = e.target.dataset.index;
+                    deleteNote(index);
+                    addMessage('assistant', `Okay, I've deleted that note.`);
+                }
+            });
+
+            // --- Reminders Management ---
+            const renderReminders = () => {
+                remindersContainer.innerHTML = '';
+                 if (reminders.length === 0) {
+                    remindersContainer.innerHTML = '<p class="text-sm opacity-60">No reminders. Try "remind me to..."</p>';
+                    return;
+                }
+                reminders.sort((a, b) => a.time - b.time);
+                reminders.forEach((reminder, index) => {
+                    const reminderEl = document.createElement('div');
+                    const timeString = new Date(reminder.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    reminderEl.classList.add('bg-black/20', 'dark:bg-black/20', 'light:bg-white/50', 'p-2', 'rounded-lg', 'flex', 'justify-between', 'items-center', 'text-sm');
+                    reminderEl.innerHTML = `<span>${reminder.task} at ${timeString}</span><button data-index="${index}" class="reminder-delete text-red-400 hover:text-red-600">&times;</button>`;
+                    remindersContainer.appendChild(reminderEl);
+                });
+            };
+
+            const addReminder = (task, time) => {
+                reminders.push({ task, time });
+                localStorage.setItem('reminders', JSON.stringify(reminders));
+                renderReminders();
+            };
+
+             const deleteReminder = (index) => {
+                reminders.splice(index, 1);
+                localStorage.setItem('reminders', JSON.stringify(reminders));
+                renderReminders();
+            };
+
+            remindersContainer.addEventListener('click', (e) => {
+                if (e.target.classList.contains('reminder-delete')) {
+                    const index = e.target.dataset.index;
+                    deleteReminder(index);
+                    addMessage('assistant', `Okay, I've deleted that reminder.`);
+                }
+            });
+
+            const checkReminders = () => {
+                const now = Date.now();
+                reminders.forEach((reminder, index) => {
+                    if (now >= reminder.time) {
+                        notifyUser(`Reminder: ${reminder.task}`);
+                        deleteReminder(index);
+                    }
+                });
+            };
+            
+            const notifyUser = (message) => {
+                 if (!("Notification" in window)) {
+                    console.warn("This browser does not support desktop notification");
+                } else if (Notification.permission === "granted") {
+                    new Notification("Aura Reminder", { body: message });
+                } else if (Notification.permission !== "denied") {
+                    Notification.requestPermission().then(permission => {
+                        if (permission === "granted") {
+                            new Notification("Aura Reminder", { body: message });
+                        }
+                    });
+                }
+            }
+
+            // --- Weather ---
+            const fetchWeather = async () => {
+                if (!navigator.geolocation) {
+                    weatherLocation.textContent = "Geolocation not supported";
+                    return;
+                }
+                navigator.geolocation.getCurrentPosition(async position => {
+                    const { latitude, longitude } = position.coords;
+                    const prompt = `What is the current weather in latitude ${latitude} and longitude ${longitude}? Respond in JSON format with keys: "location", "description", and "temperatureCelsius".`;
+                    
+                    try {
+                        const weatherData = await getAIResponse(prompt, true);
+                        weatherLocation.textContent = weatherData.location;
+                        weatherDesc.textContent = weatherData.description;
+                        weatherTemp.textContent = `${weatherData.temperatureCelsius}°C`;
+                    } catch (error) {
+                        weatherLocation.textContent = "Weather Error";
+                        weatherDesc.textContent = "Could not fetch data";
+                    }
+                }, () => {
+                    weatherLocation.textContent = "Location access denied";
+                });
+            };
+
+            // --- Music Player ---
+            const getYoutubeVideoId = (url) => {
+                let ID = '';
+                const urlParts = url.replace(/(>|<)/gi, '').split(/(vi\/|v=|\/v\/|youtu\.be\/|\/embed\/)/);
+                if (urlParts[2] !== undefined) {
+                    ID = urlParts[2].split(/[^0-9a-z_\-]/i);
+                    ID = ID[0];
+                } else {
+                    ID = url;
+                }
+                return ID;
+            };
+
+            const playYouTubeVideo = (videoId) => {
+                youtubePlayer.src = `https://www.youtube.com/embed/${videoId}?autoplay=1&origin=${window.location.origin}`;
+                musicPlayerWidget.classList.remove('hidden');
+                musicPlayerWidget.classList.add('flex');
+            };
+
+            closePlayerBtn.addEventListener('click', () => {
+                musicPlayerWidget.classList.add('hidden');
+                musicPlayerWidget.classList.remove('flex');
+                youtubePlayer.src = ''; // Stop the video
+            });
+
+            // --- Image Generation ---
+            closeImageBtn.addEventListener('click', () => {
+                imageWidget.classList.add('hidden');
+                imageWidget.classList.remove('flex');
+                generatedImage.src = '';
+            });
+
+            async function generateImage(prompt) {
+                // Show loader and widget
+                imageWidget.classList.remove('hidden');
+                imageWidget.classList.add('flex');
+                imageLoader.classList.remove('hidden');
+                generatedImageContainer.classList.add('hidden');
+                generatedImage.src = '';
+
+                const apiKey = ""; // Leave empty
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${apiKey}`;
+
+                const payload = {
+                    contents: [{
+                        parts: [{ text: prompt }]
+                    }],
+                    generationConfig: {
+                        responseModalities: ['IMAGE']
+                    },
+                };
+
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const result = await response.json(); // Attempt to parse JSON immediately.
+
+                    if (!response.ok) {
+                        // If response is not OK, 'result' should contain the error details from the API.
+                        console.error('API Error Body:', result);
+                        throw new Error(result.error?.message || `API error: ${response.status}`);
+                    }
+                    
+                    const base64Data = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+
+                    if (base64Data) {
+                        const imageUrl = `data:image/png;base64,${base64Data}`;
+                        generatedImage.src = imageUrl;
+                        imageLoader.classList.add('hidden');
+                        generatedImageContainer.classList.remove('hidden');
+                        addMessage('assistant', 'Here is the image I created for you!');
+                    } else {
+                        let reason = "No image data in response.";
+                        if (result?.candidates?.[0]?.finishReason === 'SAFETY') {
+                            reason = "The image could not be generated due to safety settings.";
+                        } else if (result.promptFeedback?.blockReason) {
+                             reason = `The request was blocked: ${result.promptFeedback.blockReason}`;
+                        }
+                        console.error('Unexpected response structure:', result);
+                        throw new Error(reason);
+                    }
+
+                } catch (error) {
+                    console.error("Error generating image:", error);
+                    let errorMessage = error.message;
+                    if (error instanceof SyntaxError) { // This catches the JSON.parse error
+                        errorMessage = "Sorry, the server returned an invalid response. This can happen if you run the file directly from your computer. Please try using a local server.";
+                    }
+                    addMessage('assistant', errorMessage);
+                    imageWidget.classList.add('hidden'); // Hide widget on error
+                }
+            }
+
+
+            // --- Voice Recognition ---
+            if (recognition) {
+                voiceToggle.addEventListener('click', () => {
+                    if (isRecording) {
+                        recognition.stop();
+                    } else {
+                        recognition.start();
+                    }
+                });
+
+                recognition.onstart = () => {
+                    isRecording = true;
+                    voiceToggle.classList.add('text-red-500', 'animate-pulse');
+                };
+
+                recognition.onend = () => {
+                    isRecording = false;
+                    voiceToggle.classList.remove('text-red-500', 'animate-pulse');
+                };
+
+                recognition.onresult = (event) => {
+                    const transcript = event.results[0][0].transcript;
+                    chatInput.value = transcript;
+                    handleUserInput();
+                };
+
+                recognition.onerror = (event) => {
+                    console.error('Speech recognition error:', event.error);
+                    addMessage('assistant', "Sorry, I had trouble understanding. Please try again.");
+                };
+            } else {
+                voiceToggle.disabled = true;
+                voiceToggle.title = "Speech recognition not supported in this browser.";
+            }
+
+            const speak = (text) => {
+                speechSynthesis.cancel(); // Stop any previous speech
+                const cleanText = text.replace(/[*_`#~]/g, '');
+                const utterance = new SpeechSynthesisUtterance(cleanText);
+                utterance.rate = 1.1;
+                speechSynthesis.speak(utterance);
+            };
+
+            // --- Input Handling ---
+            const handleUserInput = async () => {
+                const userInput = chatInput.value.trim();
+                if (!userInput) return;
+
+                addMessage('user', userInput);
+                chatInput.value = '';
+                showTypingIndicator();
+
+                const lowerInput = userInput.toLowerCase();
+                let responseHandled = false;
+
+                // --- Image Generation Command Check (English & Bengali) ---
+                const imageKeywords = ['generate image of', 'create an image of', 'draw', 'ছবি আঁকো', 'ছবি তৈরি কর', 'এর ছবি আঁকো', 'এর ছবি তৈরি কর'];
+                const imageCommand = imageKeywords.find(keyword => lowerInput.startsWith(keyword));
+
+                if (imageCommand) {
+                    const query = userInput.substring(imageCommand.length).trim();
+                    addMessage('assistant', `Okay, I'm generating an image of: **${query}**. This might take a moment.`);
+                    await generateImage(query);
+                    responseHandled = true;
+                } else if (lowerInput.startsWith('add note:')) {
+                    const note = userInput.substring(9).trim();
+                    addNote(note);
+                    addMessage('assistant', `Note added: "${note}"`);
+                    responseHandled = true;
+                } else if (lowerInput.startsWith('remind me to')) {
+                    const timeRegex = /in (\d+) (minutes?|hours?|seconds?)/;
+                    const match = lowerInput.match(timeRegex);
+                    if (match) {
+                        const value = parseInt(match[1]);
+                        const unit = match[2];
+                        let delay = 0;
+                        if (unit.startsWith('minute')) delay = value * 60 * 1000;
+                        else if (unit.startsWith('hour')) delay = value * 60 * 60 * 1000;
+                        else if (unit.startsWith('second')) delay = value * 1000;
+
+                        const task = userInput.replace(timeRegex, '').replace('remind me to', '').trim();
+                        const reminderTime = Date.now() + delay;
+                        addReminder(task, reminderTime);
+                        addMessage('assistant', `Okay, I'll remind you to "${task}" in ${value} ${unit}.`);
+                    } else {
+                        addMessage('assistant', 'Sorry, I didn\'t understand the time for the reminder. Please use a format like "in 5 minutes".');
+                    }
+                    responseHandled = true;
+                } else if (lowerInput.includes('youtube.com/') || lowerInput.includes('youtu.be/')) {
+                    const videoId = getYoutubeVideoId(userInput);
+                    if (videoId) {
+                        playYouTubeVideo(videoId);
+                        addMessage('assistant', 'Playing your music now. Note: some videos may not work due to embedding restrictions.');
+                    } else {
+                        addMessage('assistant', "I couldn't find a valid YouTube video ID in that link.");
+                    }
+                    responseHandled = true;
+                } else if (lowerInput.startsWith('play ')) {
+                    const songQuery = userInput.substring(5).trim();
+                    const searchPrompt = `Find a YouTube URL for a lyric video or topic audio for the song: "${songQuery}". Prioritize videos that are likely to be embeddable on other websites. Only return the URL, nothing else.`;
+                    const youtubeUrl = await getAIResponse(searchPrompt);
+
+                    if (youtubeUrl && (youtubeUrl.includes('youtube.com/') || youtubeUrl.includes('youtu.be/'))) {
+                        const videoId = getYoutubeVideoId(youtubeUrl);
+                        if (videoId) {
+                            playYouTubeVideo(videoId);
+                            addMessage('assistant', `Now playing: **${songQuery}**`);
+                        } else {
+                            addMessage('assistant', "I found a link, but I couldn't extract the video ID.");
+                        }
+                    } else {
+                        addMessage('assistant', `Sorry, I couldn't find a YouTube video for "${songQuery}".`);
+                    }
+                    responseHandled = true;
+                }
+                else if (lowerInput.includes('what is the weather') || lowerInput.includes('weather forecast')) {
+                    await fetchWeather();
+                    addMessage('assistant', `Here is the current weather information.`);
+                    responseHandled = true;
+                }
+                
+                if (!responseHandled) {
+                    const aiResponse = await getAIResponse(userInput);
+                    addMessage('assistant', aiResponse);
+                    speak(aiResponse);
+                }
+
+                removeTypingIndicator();
+            };
+
+            sendBtn.addEventListener('click', handleUserInput);
+            chatInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') handleUserInput();
+            });
+
+            // --- Gemini API Call ---
+            async function getAIResponse(prompt, isJson = false) {
+                const apiKey = ""; // Leave empty
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+                
+                const payload = {
+                    contents: [{ parts: [{ text: `You are a helpful assistant named Aura. If you need to introduce yourself in Bengali, say "হ্যালো ! আমি Aura ।". Please format your responses using Markdown (headings, lists, bold, italics) for better readability when appropriate. User prompt: ${prompt}` }] }],
+                };
+
+                if (isJson) {
+                    payload.generationConfig = {
+                        responseMimeType: "application/json",
+                    };
+                }
+
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`API error: ${response.statusText}`);
+                    }
+
+                    const result = await response.json();
+                    
+                    if (result.candidates && result.candidates.length > 0) {
+                        const text = result.candidates[0].content.parts[0].text;
+                        return isJson ? JSON.parse(text) : text;
+                    } else {
+                        return "I'm not sure how to respond to that.";
+                    }
+                } catch (error) {
+                    console.error("Error fetching from Gemini API:", error);
+                    return "Sorry, I'm having trouble connecting right now.";
+                }
+            }
+
+            // --- Start the app ---
+            init();
+        });
+    </script>
+</body>
+</html>
